@@ -85,20 +85,27 @@ client.on("messageCreate", async (message) => {
                   // Save to database
                   try {
                     await pool.query(
-                      `INSERT INTO users (discord_id, username, osrs_name, gamemode) 
-                       VALUES ($1, $2, $3, $4) 
-                       ON CONFLICT (discord_id) 
-                       DO UPDATE SET osrs_name = $3, gamemode = $4`,
-                      [author.id, author.username, osrsName, gamemode]
+                      `INSERT INTO users (discord_id, username, osrs_name, gameMode) 
+                       VALUES ($1, $2, $3, $4)`,
+                      [
+                        message.author.id,
+                        message.author.username,
+                        osrsName,
+                        gameMode,
+                      ]
                     );
                     message.reply(
                       `Succesfully added user: **${osrsName}**, **${gameMode}`
                     );
                   } catch (err) {
-                    console.error(err);
-                    message.reply(
-                      "There was an error saving your information."
-                    );
+                    if (err.code === "23505") {
+                      message.reply(`Error: Account already registered`);
+                    } else {
+                      console.error(err);
+                      message.reply(
+                        "There was an error saving your information"
+                      );
+                    }
                   }
 
                   //Error for waiting too long
@@ -112,6 +119,27 @@ client.on("messageCreate", async (message) => {
           message.reply("Error: Timeout: Account Name");
         });
     });
+  }
+
+  // COMMAND: View user info
+  if (command === "userinfo") {
+    try {
+      const res = await pool.query(
+        "SELECT osrs_name, gamemode FROM users WHERE discord_id = $1",
+        [message.author.id]
+      );
+      if (res.rows.length > 0) {
+        const accounts = res.rows
+          .map((row) => `Name: ${row.osrs_name}, Type: ${row.gamemode}`)
+          .join("\n");
+        message.reply(`Your OSRS accounts:\n${accounts}`);
+      } else {
+        message.reply("You have no registered OSRS accounts.");
+      }
+    } catch (err) {
+      console.error(err);
+      message.reply("There was an error fetching your data");
+    }
   }
 });
 
