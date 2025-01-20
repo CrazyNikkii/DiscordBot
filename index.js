@@ -141,6 +141,66 @@ client.on("messageCreate", async (message) => {
       message.reply("There was an error fetching your data");
     }
   }
+
+  // COMMAND: Remove player
+  if (command === "removeplayer") {
+    try {
+      const res = await pool.query(
+        "SELECT osrs_name FROM users WHERE discord_id = $1",
+        [message.author.id]
+      );
+
+      // Checks if user has any registered accounts
+      if (res.rows.length === 0) {
+        return message.reply("You don't have any registered OSRS accounts");
+      }
+
+      // Make a list of accounts
+      const accountList = res.rows
+        .map((row, index) => `${index + 1}. ${row.osrs_name}`)
+        .join("\n");
+
+      message.reply(
+        `Here are your registered accounts:\n${accountList}\n\nWhich account you wish to remove?`
+      );
+
+      // Filters for the reply (right account + number within the list)
+      const filter = (response) =>
+        response.author.id === message.author.id &&
+        !isNaN(response.content) &&
+        parseInt(response.content) > 0 &&
+        parseInt(response.content) <= res.rows.length;
+
+      // Waits for answer
+      const collected = await message.channel.awaitMessages({
+        filter,
+        max: 1,
+        time: 60000,
+        errors: ["time"],
+      });
+
+      // Make the selection
+      const selectedIndex = parseInt(collected.first().content) - 1;
+      const selectedAccount = res.rows[selectedIndex].osrs_name;
+
+      // Removing the selected player
+      await pool.query(
+        "DELETE FROM users WHERE discord_id = $1 AND osrs_name = $2",
+        [message.author.id, selectedAccount]
+      );
+
+      message.reply(`Succesfully removed player: **${selectedAccount}**`);
+
+      // Errors
+    } catch (err) {
+      if (err.name === "CollectionError") {
+        message.reply("Error: Timeout");
+      } else {
+        console.error(err);
+        message.reply("There was an error removing your player.");
+      }
+    }
+  }
 });
 
 // Logging in
