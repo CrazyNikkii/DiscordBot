@@ -319,7 +319,7 @@ async function fetchAndDisplayStats(message, osrsName) {
 
       const stats = skills
         .map((skill, index) => {
-          const skillData = playerData[index]; // Get the data from the playerData object
+          const skillData = playerData[index];
           if (skillData && skillData !== "") {
             const [rank, level, exp] = skillData.split(",");
             return `${skill}: Rank: ${rank}, Level: ${level}, Exp: ${exp}`;
