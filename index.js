@@ -81,8 +81,35 @@ client.on("messageCreate", async (message) => {
                       "Invalid gamemode. Please try again with one of: Regular, Ironman, Hardcore Ironman, Ultimate Ironman"
                     );
                   }
+
+                  // Save to database
+                  try {
+                    await pool.query(
+                      `INSERT INTO users (discord_id, username, osrs_name, gamemode) 
+                       VALUES ($1, $2, $3, $4) 
+                       ON CONFLICT (discord_id) 
+                       DO UPDATE SET osrs_name = $3, gamemode = $4`,
+                      [author.id, author.username, osrsName, gamemode]
+                    );
+                    message.reply(
+                      `Succesfully added user: **${osrsName}**, **${gameMode}`
+                    );
+                  } catch (err) {
+                    console.error(err);
+                    message.reply(
+                      "There was an error saving your information."
+                    );
+                  }
+
+                  //Error for waiting too long
+                })
+                .catch(() => {
+                  message.reply("Error: Timeout: Account Type");
                 });
             });
+        })
+        .catch(() => {
+          message.reply("Error: Timeout: Account Name");
         });
     });
   }
