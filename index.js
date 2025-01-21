@@ -36,11 +36,8 @@ client.on("messageCreate", async (message) => {
   if (!message.content.startsWith(PREFIX)) return;
 
   // Removing the prefix from command and take the command word
-  const command = message.content
-    .slice(PREFIX.length)
-    .trim()
-    .split(" ")[0]
-    .toLowerCase();
+  const args = message.content.slice(PREFIX.length).trim().split(/\s+/);
+  const command = args.shift().toLowerCase();
 
   // COMMAND: Addplayer
   if (command === "addplayer") {
@@ -205,10 +202,11 @@ client.on("messageCreate", async (message) => {
 
   // COMMAND: Levels
   if (command === "lvl") {
-    const args = message.content.slice(PREFIX.length + 4).trim();
-    let givedName = args || null;
+    const skill = args[0]?.toLowerCase() || null;
+    const givedName = args[1] || null;
 
-    if (!givedName) {
+    // !Lvl without args
+    if (!skill && !givedName) {
       try {
         const res = await pool.query(
           "SELECT osrs_name FROM users WHERE discord_id = $1",
@@ -237,14 +235,14 @@ client.on("messageCreate", async (message) => {
               .awaitMessages({ filter, max: 1, time: 60000, errors: ["time"] })
               .then(async (collected) => {
                 const choice = parseInt(collected.first().content);
-                osrsName = res.rows[choice - 1].osrs_name;
+                const osrsName = res.rows[choice - 1].osrs_name;
                 await fetchAndDisplayStats(message, osrsName);
               })
               .catch(() => {
                 message.reply("Error: Timeout");
               });
           } else {
-            osrsName = res.rows[0].osrs_name;
+            const osrsName = res.rows[0].osrs_name;
             await fetchAndDisplayStats(message, osrsName);
           }
         } else {
@@ -254,7 +252,58 @@ client.on("messageCreate", async (message) => {
         console.error(err);
         message.reply("There was an error fetching your OSRS name.");
       }
-    } else {
+
+      // !Lvl with skill arg
+    } else if (skill && !givedName) {
+      try {
+        const res = await pool.query(
+          "SELECT osrs_name FROM users WHERE discord_id = $1",
+          [message.author.id]
+        );
+
+        if (res.rows.length > 0) {
+          if (res.rows.length > 1) {
+            const accounts = res.rows
+              .map((row, index) => `${index + 1}. ${row.osrs_name}`)
+              .join("\n");
+            const promptMessage = await message.reply(
+              `Select account:\n${accounts}\n`
+            );
+
+            const filter = (response) => {
+              const choice = parseInt(response.content);
+              return (
+                response.author.id === message.author.id &&
+                choice >= 1 &&
+                choice <= res.rows.length
+              );
+            };
+
+            message.channel
+              .awaitMessages({ filter, max: 1, time: 60000, errors: ["time"] })
+              .then(async (collected) => {
+                const choice = parseInt(collected.first().content);
+                const osrsName = res.rows[choice - 1].osrs_name;
+                await fetchSkillLevel(message, osrsName, skill);
+              })
+              .catch(() => {
+                message.reply("Error: Timeout");
+              });
+          } else {
+            const osrs_name = res.rows[0].osrs_name;
+            await fetchSkillLevel(message, osrsName, skill);
+          }
+        } else {
+          message.reply("You don't have any registered accounts yet.");
+        }
+      } catch (err) {
+        console.error(err);
+        message.reply("There was an error fetching your accounts.");
+      }
+      // !lvl with both args
+    } else if (skill && givedName) {
+      await fetchSkillLevel(message, givedName, skill);
+    } else if (!skill && givedName) {
       await fetchAndDisplayStats(message, givedName);
     }
   }
@@ -268,18 +317,18 @@ async function fetchAndDisplayStats(message, osrsName) {
     );
 
     if (res.rows.length === 0) {
-      return message.reply(`No account found for name **${osrsName}**.`);
+      return message.reply(`No account found for name kys ${osrsName}.`);
     }
 
     const gameMode = res.rows[0].gameMode;
 
     let url;
     if (gameMode === "Ironman") {
-      url = `https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player=${osrsName}`;
+      url = `https://secure.runescape.com/m=hiscore_oldschool_ironman/index_lite.ws?player=${osrsName}`;
     } else if (gameMode === "Hardcore Ironman") {
-      url = `https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player=${osrsName}`;
+      url = `https://secure.runescape.com/m=hiscore_oldschool_hardcore_ironman/index_lite.ws?player=${osrsName}`;
     } else if (gameMode === "Ultimate Ironman") {
-      url = `https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player=${osrsName}`;
+      url = `https://secure.runescape.com/m=hiscore_oldschool_ultimate/index_lite.ws?player=${osrsName}`;
     } else {
       url = `https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player=${osrsName}`;
     }
@@ -322,7 +371,7 @@ async function fetchAndDisplayStats(message, osrsName) {
           const skillData = playerData[index];
           if (skillData && skillData !== "") {
             const [rank, level, exp] = skillData.split(",");
-            return `${skill}: Rank: ${rank}, Level: ${level}, Exp: ${exp}`;
+            return `${skill}: Level: ${level}, Exp: ${exp}`;
           }
 
           return `${skill}: No data available`;
@@ -336,6 +385,85 @@ async function fetchAndDisplayStats(message, osrsName) {
   } catch (err) {
     console.error(err);
     message.reply("There was an error fetching your stats.");
+  }
+}
+
+async function fetchSkillLevel(message, osrsName, skill) {
+  try {
+    const res = await pool.query(
+      "SELECT gamemode FROM users WHERE osrs_name = $1",
+      [osrsName]
+    );
+
+    if (res.rows.length === 0) {
+      return message.reply(`No account found for name kys **${osrsName}`);
+    }
+
+    const gameMode = res.rows[0].gameMode;
+
+    let url;
+    if (gameMode === "Ironman") {
+      url = `https://secure.runescape.com/m=hiscore_oldschool_ironman/index_lite.ws?player=${osrsName}`;
+    } else if (gameMode === "Hardcore Ironman") {
+      url = `https://secure.runescape.com/m=hiscore_oldschool_hardcore_ironman/index_lite.ws?player=${osrsName}`;
+    } else if (gameMode === "Ultimate Ironman") {
+      url = `https://secure.runescape.com/m=hiscore_oldschool_ultimate/index_lite.ws?player=${osrsName}`;
+    } else {
+      url = `https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player=${osrsName}`;
+    }
+
+    const response = await axios.get(url);
+
+    if (response && response.data) {
+      const playerData = response.data.split("\n");
+      const skills = [
+        "Overall",
+        "Attack",
+        "Defence",
+        "Strength",
+        "Hitpoints",
+        "Ranged",
+        "Prayer",
+        "Magic",
+        "Cooking",
+        "Woodcutting",
+        "Fletching",
+        "Fishing",
+        "Firemaking",
+        "Crafting",
+        "Smithing",
+        "Mining",
+        "Herblore",
+        "Agility",
+        "Thieving",
+        "Slayer",
+        "Farming",
+        "Runecrafting",
+        "Hunter",
+        "Construction",
+      ];
+
+      const skillIndex = skills.indexOf(
+        skill.charAt(0).toUpperCase() + skill.slice(1)
+      );
+
+      if (skillIndex === -1) {
+        return message.reply(`Skill **${skill}** not recognized.`);
+      }
+
+      const skillData = playerData[skillIndex];
+      if (skillData && skillData !== "") {
+        const [rank, level, exp] = skillData.split(",");
+        message.reply(`**${osrsName}: ${skill}: Level: ${level}**`);
+      } else {
+        message.reply(`${skill} skill data not avaible for ${osrsName}`);
+      }
+    } else {
+      message.reply(`Unable to fetch data for ${osrsName}`);
+    }
+  } catch (err) {
+    console.error(err);
+    message.reply("There was an error fetching skill data");
   }
 }
 
