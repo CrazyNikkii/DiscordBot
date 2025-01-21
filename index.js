@@ -35,12 +35,22 @@ const skills = [
   "Construction",
 ];
 
+// Custom emojis
+const customEmojis = {
+  RegEmoji: "<:pmodcrown:1331210130481483847>",
+  IMEmoji: "<:OSstandardIM:1331208060760494153>",
+  HCEmoji: "<:OSHarcoreIM:1331208059678101534>",
+  UIMEmoji: "<:UltimateIM:1331208063079940126>",
+  CancelEmoji: "❌",
+};
+
 // Create a Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
     GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions,
   ],
 });
 
@@ -162,26 +172,93 @@ async function fetchSkillLevel(message, osrsName, skill) {
   }
 }
 
-async function addPlayer(message) {
-  const osrsName = await askQuestions(
-    message,
-    "What is your Old School RuneScape username?"
-  );
-  const gameMode = await askQuestions(
-    message,
-    "What is your account type? (Regular, Ironman, Hardcore Ironman, Ultimate Ironman)"
+async function askGameMode(message) {
+  const gameModeMessage = await message.reply(
+    "Please select the gamemode by reacting:\n" +
+      `${customEmojis.RegEmoji} Regular\n` +
+      `${customEmojis.IMEmoji} Ironman\n` +
+      `${customEmojis.HCEmoji} Hardcore Ironman\n` +
+      `${customEmojis.UIMEmoji} Ultimate Ironman\n` +
+      `${customEmojis.CancelEmoji} Cancel`
   );
 
-  const validGameModes = [
-    "Regular",
-    "Ironman",
-    "Hardcore Ironman",
-    "Ultimate Ironman",
-  ];
-  if (!validGameModes.includes(gameMode)) {
-    return message.reply(
-      "Invalid gamemode. Please try again with valid account type."
-    );
+  // React to the message with all game mode emojis
+  await gameModeMessage.react(customEmojis.RegEmoji);
+  await gameModeMessage.react(customEmojis.IMEmoji);
+  await gameModeMessage.react(customEmojis.HCEmoji);
+  await gameModeMessage.react(customEmojis.UIMEmoji);
+  await gameModeMessage.react(customEmojis.CancelEmoji);
+
+  // Create a reaction collector to listen for the reactions
+  const filter = (reaction, user) => user.id === message.author.id;
+  const collector = gameModeMessage.createReactionCollector({
+    filter,
+    time: 60000,
+  });
+
+  return new Promise((resolve) => {
+    collector.on("collect", (reaction) => {
+      console.log(`Reaction collected: ${reaction.emoji.id}`); // Log the emoji ID for debugging
+      const selectedEmoji = reaction.emoji.id; // Use the emoji ID
+
+      let gameMode;
+
+      switch (selectedEmoji) {
+        case "1331210130481483847": // ID for RegEmoji
+          gameMode = "Regular";
+          break;
+        case "1331208060760494153": // ID for IMEmoji
+          gameMode = "Ironman";
+          break;
+        case "1331208059678101534": // ID for HCEmoji
+          gameMode = "Hardcore Ironman";
+          break;
+        case "1331208063079940126": // ID for UIMEmoji
+          gameMode = "Ultimate Ironman";
+          break;
+        case "❌": // Cancel emoji
+          resolve(null); // Resolve with null if canceled
+          break;
+        default:
+          resolve(null); // Invalid emoji, resolve with null
+          break;
+      }
+
+      // Stop the collector as we've received a valid response
+      collector.stop();
+
+      // Send a message with the selected game mode
+      if (gameMode) {
+        message.reply(`Selected gamemode: **${gameMode}**`);
+        resolve(gameMode); // Resolve with the selected game mode
+      } else {
+        message.reply("Account creation canceled.");
+        resolve(null); // Resolve with null for cancellation
+      }
+    });
+
+    collector.on("end", (collected, reason) => {
+      if (reason === "time") {
+        message.reply("You took too long to select a game mode.");
+        resolve(null); // Resolve with null if the time expires
+      }
+    });
+  });
+}
+
+async function addPlayer(message) {
+  const args = message.content.split(/\s+/);
+  const osrsName =
+    args[1] ||
+    (await askQuestions(
+      message,
+      "What is your Old School RuneScape username?"
+    ));
+
+  const gameMode = await askGameMode(message);
+
+  if (gameMode === null) {
+    return message.reply("Account creation canceled.");
   }
 
   // Save to database
@@ -191,7 +268,7 @@ async function addPlayer(message) {
        VALUES ($1, $2, $3, $4)`,
       [message.author.id, message.author.username, osrsName, gameMode]
     );
-    message.reply(`Succesfully added user: **${osrsName}**, **${gameMode}`);
+    message.reply(`Succesfully added user: **${osrsName}** - **${gameMode}**`);
   } catch (err) {
     if (err.code === "23505") {
       message.reply(`Error: Account already registered`);
