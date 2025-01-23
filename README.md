@@ -72,6 +72,6 @@ At this stage, OSLeaders is not publicly available. It is under active developme
 
 Below is the sequence diagram for the `!lvl <osrsname>` command:
 
-[Sequence Diagram](https://imgur.com/aHYpiij)
+[Sequence Diagram](https://imgur.com/aHYpiij.png)
 
 ---
