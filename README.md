@@ -67,3 +67,11 @@ At this stage, OSLeaders is not publicly available. It is under active developme
 - **Axios**: For making HTTP requests to the OSRS API.
 
 ---
+
+## 📊 Sequence Diagram
+
+Below is the sequence diagram for the `!lvl <osrsname>` command:
+
+![Sequence Diagram](https://imgur.com/a/osleaders-sequence-diagram-VZix7gH)
+
+---
