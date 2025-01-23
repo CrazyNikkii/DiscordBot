@@ -62,7 +62,7 @@ At this stage, OSLeaders is not publicly available. It is under active developme
 ## 🧑‍💻 Tech Stack
 
 - **Node.js**: Backend runtime.
-- **Discord.js**: Library for interacting with the Discord API.
+- **Discord.js**: Library for interacting with the Discord.
 - **PostgreSQL**: Database to store user information.
 - **Axios**: For making HTTP requests to the OSRS API.
 
