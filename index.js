@@ -13,8 +13,9 @@ const {
 
 const { SKILLS, CUSTOM_EMOJIS } = require("./constants");
 
-const { BASE_URL, GAME_MODE_PATHS } = require("./osrsAPI");
-const axios = require("axios");
+const { fetchAndDisplayStats, fetchSkillLevel } = require("./osrsAPI");
+
+console.log(fetchAndDisplayStats);
 
 const PREFIX = "!";
 
@@ -42,87 +43,6 @@ async function askQuestions(message, prompt, timeout = 60000) {
     errors: ["time"],
   });
   return collected.first() ? collected.first().content : null;
-}
-
-async function getUrl(osrsName, gameMode) {
-  const gameModePath = GAME_MODE_PATHS[gameMode] || "";
-
-  const url = new URL(`${BASE_URL}${gameModePath}/index_lite.ws`);
-
-  url.searchParams.append("player", osrsName);
-
-  return url.toString();
-}
-
-async function fetchAndDisplayStats(message, osrsName) {
-  try {
-    const gameMode = await getGameModeByOSRSName(osrsName);
-
-    if (!gameMode) {
-      return message.reply(`No account found for name ${osrsName}.`);
-    }
-
-    const url = await getUrl(osrsName, gameMode);
-    const response = await axios.get(url);
-
-    if (response && response.data) {
-      const playerData = response.data.split("\n");
-      const stats = SKILLS.map((skill, index) => {
-        const skillData = playerData[index];
-        if (skillData && skillData !== "") {
-          const [rank, level, exp] = skillData.split(",");
-          return `${skill}: Level: ${level}, Exp: ${exp}`;
-        }
-
-        return `${skill}: No data available`;
-      }).join("\n");
-
-      message.reply(`**${osrsName} stats: **\n${stats}`);
-    } else {
-      message.reply(`Unable to fetch stats for player: **${osrsName}**`);
-    }
-  } catch (err) {
-    console.error(err);
-    message.reply("There was an error fetching your stats.");
-  }
-}
-
-async function fetchSkillLevel(message, osrsName, skill) {
-  try {
-    const gameMode = await getGameModeByOSRSName(osrsName);
-
-    if (!gameMode) {
-      return message.reply(`No account found for name ${osrsName}.`);
-    }
-
-    const url = await getUrl(osrsName, gameMode);
-    const response = await axios.get(url);
-
-    if (response && response.data) {
-      const playerData = response.data.split("\n");
-
-      const skillIndex = SKILLS.indexOf(
-        skill.charAt(0).toUpperCase() + skill.slice(1)
-      );
-
-      if (skillIndex === -1) {
-        return message.reply(`Skill **${skill}** not recognized.`);
-      }
-
-      const skillData = playerData[skillIndex];
-      if (skillData && skillData !== "") {
-        const [rank, level, exp] = skillData.split(",");
-        message.reply(`**${osrsName}: ${skill}: Level: ${level}**`);
-      } else {
-        message.reply(`${skill} skill data not avaible for ${osrsName}`);
-      }
-    } else {
-      message.reply(`Unable to fetch data for ${osrsName}`);
-    }
-  } catch (err) {
-    console.error(err);
-    message.reply("There was an error fetching skill data");
-  }
 }
 
 async function askGameMode(message) {
@@ -285,33 +205,43 @@ async function removePlayer(message) {
 }
 
 async function levelCommand(message, args) {
-  const skill = args[0]?.toLowerCase();
-  const osrsName = args[1] || args[0];
+  const skill = args[0]?.toLowerCase(); // Check if the first argument is a skill
+  let osrsName = args[1] || args[0]; // If no name is passed, default to the first argument
+  if (!osrsName || osrsName.startsWith("!lvl")) {
+    osrsName = null; // Set osrsName to null to prevent sending "!lvl" as the player name
+  }
+
+  // If no arguments provided (just !lvl), prompt user for selection
   if (!args.length) {
     await userLevelSelection(message);
   }
-  // If the first argument is skill, but no name provided.
+  // If skill is provided but no name, ask user to select account
   else if (
     skill &&
     !osrsName &&
-    SKILLS.map((s) => s.toLocaleLowerCase()).includes(skill)
+    SKILLS.map((s) => s.toLowerCase()).includes(skill)
   ) {
     await userLevelSelection(message, skill);
   }
-  // If both skill and name provided.
+  // If both skill and OSRS name are provided, fetch skill level
   else if (
     skill &&
     osrsName &&
-    SKILLS.map((s) => s.toLocaleLowerCase()).includes(skill)
+    SKILLS.map((s) => s.toLowerCase()).includes(skill)
   ) {
-    await fetchSkillLevel(message, osrsName, skill);
+    // Remove the leading "!" if the user has typed "!lvl"
+    if (osrsName.startsWith("!lvl")) {
+      osrsName = ""; // Clear osrsName so the bot will prompt the user to choose an account
+    }
+    await fetchSkillLevelReply(message, osrsName, skill);
   }
-  // If only name is given
-  else if (
-    osrsName &&
-    !SKILLS.map((s) => s.toLocaleLowerCase()).includes(skill)
-  ) {
-    await fetchAndDisplayStats(message, osrsName);
+  // If only OSRS name is provided, fetch general stats
+  else if (osrsName && !SKILLS.map((s) => s.toLowerCase()).includes(skill)) {
+    // Remove the leading "!" if the user has typed "!lvl"
+    if (osrsName.startsWith("!lvl")) {
+      osrsName = ""; // Clear osrsName so the bot will prompt the user to choose an account
+    }
+    await fetchAndDisplayStatsReply(message, osrsName); // Fetch general stats
   } else {
     message.reply(`Invalid command. Please use one of the following formats:
       !lvl
@@ -323,9 +253,8 @@ async function levelCommand(message, args) {
 
 async function userLevelSelection(message, skill = null) {
   try {
-    const res = await getAllUsers();
+    const res = await getAllUsers(); // Fetch all users from DB
 
-    // Show user available accounts
     if (res.length > 0) {
       if (res.length > 1) {
         const accounts = res
@@ -337,26 +266,78 @@ async function userLevelSelection(message, skill = null) {
         const accountChoice = await askQuestions(message, "Select account:");
         const selectedAccountIndex = parseInt(accountChoice) - 1;
 
-        // Validate selection
         const selectedAccount = res[selectedAccountIndex]?.osrs_name;
-        if (!selectedAccount)
+        if (!selectedAccount) {
           return message.reply("Invalid account selection.");
+        }
 
-        // Fetch data for selected account
-        if (skill) await fetchSkillLevel(message, selectedAccount, skill);
-        else await fetchAndDisplayStats(message, selectedAccount);
+        // Fetch game mode for the selected account
+        const gameMode = await getGameModeByOSRSName(selectedAccount);
+        console.log("Selected Game Mode:", gameMode); // Debugging log for game mode
+        if (!gameMode) {
+          return message.reply(
+            "Unable to retrieve game mode for selected account."
+          );
+        }
+
+        // If skill is provided, fetch skill level; otherwise, fetch stats
+        if (skill) {
+          await fetchSkillLevel(message, selectedAccount, skill);
+        } else {
+          console.log("Fetching stats for:", selectedAccount, gameMode); // Debugging log for fetch
+          const stats = await fetchAndDisplayStats(selectedAccount, gameMode); // Fetch stats here
+          message.reply(
+            `Stats for ${selectedAccount} (${gameMode} mode):\n${stats}`
+          ); // Send stats to user
+        }
       } else {
-        // If only one account, just fetch data
-        const osrsName = res.rows[0].osrs_name;
-        if (skill) await fetchSkillLevel(message, osrsName, skill);
-        else await fetchAndDisplayStats(message, osrsName);
+        // If only one account, just fetch data for that account
+        const osrsName = res[0].osrs_name;
+        const gameMode = await getGameModeByOSRSName(osrsName);
+        if (skill) {
+          await fetchSkillLevel(message, osrsName, skill);
+        } else {
+          console.log("Fetching stats for:", osrsName, gameMode); // Debugging log for fetch
+          const stats = await fetchAndDisplayStats(osrsName, gameMode); // Fetch stats here
+          message.reply(`Stats for ${osrsName} (${gameMode} mode):\n${stats}`); // Send stats to user
+        }
       }
     } else {
       message.reply("You don't have any registered accounts yet.");
     }
   } catch (err) {
     console.error(err);
-    message.reply("There as an error fetching your OSRS name.");
+    message.reply("There was an error fetching your OSRS name.");
+  }
+}
+
+async function fetchAndDisplayStatsReply(message, osrsName) {
+  try {
+    const gameMode = await getGameModeByOSRSName(osrsName);
+    if (!gameMode) {
+      return message.reply(`No account found for name ${osrsName}.`);
+    }
+
+    const stats = await fetchAndDisplayStats(osrsName, gameMode); // Fetch stats from osrsAPI
+    message.reply(`**${osrsName} stats:**\n${stats}`);
+  } catch (err) {
+    console.error(err);
+    message.reply(err.message);
+  }
+}
+
+async function fetchSkillLevelReply(message, osrsName, skill) {
+  try {
+    const gameMode = await getGameModeByOSRSName(osrsName);
+    if (!gameMode) {
+      return message.reply(`No account found for name ${osrsName}.`);
+    }
+
+    const skillLevel = await fetchSkillLevel(osrsName, gameMode, skill); // Fetch skill level from osrsAPI
+    message.reply(skillLevel);
+  } catch (err) {
+    console.error(err);
+    message.reply(err.message);
   }
 }
 
