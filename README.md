@@ -6,7 +6,7 @@ OSLeaders is a Discord bot designed to enhance group interactions among friends 
 
 ## 🚧 Current Status
 
-At this stage, OSLeaders is not publicly available. It is under active development, and I plan to release it for public use after further improvements and feature additions. Stay tuned for updates!
+At this stage, OSLeaders is not publicly available. It is under active development, and I plan to release it for public use after further improvements and feature additions.
 
 ---
 

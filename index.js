@@ -2,47 +2,21 @@
 require("dotenv").config();
 
 const { Client, GatewayIntentBits } = require("discord.js");
-const { Pool } = require("pg");
+const {
+  getGameModeByOSRSName,
+  getAllUsers,
+  addPlayerToDB,
+  removePlayerFromDB,
+  getUserInfoByDiscordId,
+  getAllUsersByDiscordId,
+} = require("./db");
+
+const { SKILLS, CUSTOM_EMOJIS } = require("./constants");
+
+const { BASE_URL, GAME_MODE_PATHS } = require("./osrsAPI");
 const axios = require("axios");
 
 const PREFIX = "!";
-
-// Skill list
-const skills = [
-  "Overall",
-  "Attack",
-  "Defence",
-  "Strength",
-  "Hitpoints",
-  "Ranged",
-  "Prayer",
-  "Magic",
-  "Cooking",
-  "Woodcutting",
-  "Fletching",
-  "Fishing",
-  "Firemaking",
-  "Crafting",
-  "Smithing",
-  "Mining",
-  "Herblore",
-  "Agility",
-  "Thieving",
-  "Slayer",
-  "Farming",
-  "Runecrafting",
-  "Hunter",
-  "Construction",
-];
-
-// Custom emojis
-const customEmojis = {
-  RegEmoji: "<:pmodcrown:1331210130481483847>",
-  IMEmoji: "<:OSstandardIM:1331208060760494153>",
-  HCEmoji: "<:OSHarcoreIM:1331208059678101534>",
-  UIMEmoji: "<:UltimateIM:1331208063079940126>",
-  CancelEmoji: "❌",
-};
 
 // Create a Discord client
 const client = new Client({
@@ -52,15 +26,6 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
   ],
-});
-
-// PostgreSQL connection pool
-const pool = new Pool({
-  user: process.env.DB_USER,
-  host: process.env.DB_HOST,
-  database: process.env.DB_NAME,
-  password: process.env.DB_PASSWORD,
-  port: process.env.DB_PORT,
 });
 
 client.once("ready", () => {
@@ -80,45 +45,37 @@ async function askQuestions(message, prompt, timeout = 60000) {
 }
 
 async function getUrl(osrsName, gameMode) {
-  const baseUrl = "https://secure.runescape.com/m=hiscore_oldschool";
-  const gameModeUrls = {
-    Ironman: `${baseUrl}_ironman/index_lite.ws?player=${osrsName}`,
-    "Hardcore Ironman": `${baseUrl}_hardcore_ironman/index_lite.ws?player=${osrsName}`,
-    "Ultimate Ironman": `${baseUrl}_ultimate/index_lite.ws?player=${osrsName}`,
-  };
-  return (
-    gameModeUrls[gameMode] || `${baseUrl}/index_lite.ws?player=${osrsName}`
-  );
+  const gameModePath = GAME_MODE_PATHS[gameMode] || "";
+
+  const url = new URL(`${BASE_URL}${gameModePath}/index_lite.ws`);
+
+  url.searchParams.append("player", osrsName);
+
+  return url.toString();
 }
 
 async function fetchAndDisplayStats(message, osrsName) {
   try {
-    const res = await pool.query(
-      "SELECT gameMode FROM users WHERE LOWER(osrs_name) = LOWER($1)",
-      [osrsName]
-    );
+    const gameMode = await getGameModeByOSRSName(osrsName);
 
-    if (res.rows.length === 0) {
+    if (!gameMode) {
       return message.reply(`No account found for name ${osrsName}.`);
     }
 
-    const gameMode = res.rows[0].gameMode;
     const url = await getUrl(osrsName, gameMode);
     const response = await axios.get(url);
 
     if (response && response.data) {
       const playerData = response.data.split("\n");
-      const stats = skills
-        .map((skill, index) => {
-          const skillData = playerData[index];
-          if (skillData && skillData !== "") {
-            const [rank, level, exp] = skillData.split(",");
-            return `${skill}: Level: ${level}, Exp: ${exp}`;
-          }
+      const stats = SKILLS.map((skill, index) => {
+        const skillData = playerData[index];
+        if (skillData && skillData !== "") {
+          const [rank, level, exp] = skillData.split(",");
+          return `${skill}: Level: ${level}, Exp: ${exp}`;
+        }
 
-          return `${skill}: No data available`;
-        })
-        .join("\n");
+        return `${skill}: No data available`;
+      }).join("\n");
 
       message.reply(`**${osrsName} stats: **\n${stats}`);
     } else {
@@ -132,23 +89,19 @@ async function fetchAndDisplayStats(message, osrsName) {
 
 async function fetchSkillLevel(message, osrsName, skill) {
   try {
-    const res = await pool.query(
-      "SELECT gamemode FROM users WHERE LOWER(osrs_name) = LOWER($1)",
-      [osrsName]
-    );
+    const gameMode = await getGameModeByOSRSName(osrsName);
 
-    if (res.rows.length === 0) {
-      return message.reply(`No account found for name **${osrsName}**`);
+    if (!gameMode) {
+      return message.reply(`No account found for name ${osrsName}.`);
     }
 
-    const gameMode = res.rows[0].gameMode;
     const url = await getUrl(osrsName, gameMode);
     const response = await axios.get(url);
 
     if (response && response.data) {
       const playerData = response.data.split("\n");
 
-      const skillIndex = skills.indexOf(
+      const skillIndex = SKILLS.indexOf(
         skill.charAt(0).toUpperCase() + skill.slice(1)
       );
 
@@ -175,19 +128,19 @@ async function fetchSkillLevel(message, osrsName, skill) {
 async function askGameMode(message) {
   const gameModeMessage = await message.reply(
     "Please select the gamemode by reacting:\n" +
-      `${customEmojis.RegEmoji} Regular\n` +
-      `${customEmojis.IMEmoji} Ironman\n` +
-      `${customEmojis.HCEmoji} Hardcore Ironman\n` +
-      `${customEmojis.UIMEmoji} Ultimate Ironman\n` +
-      `${customEmojis.CancelEmoji} Cancel`
+      `${CUSTOM_EMOJIS.RegEmoji} Regular\n` +
+      `${CUSTOM_EMOJIS.IMEmoji} Ironman\n` +
+      `${CUSTOM_EMOJIS.HCEmoji} Hardcore Ironman\n` +
+      `${CUSTOM_EMOJIS.UIMEmoji} Ultimate Ironman\n` +
+      `${CUSTOM_EMOJIS.CancelEmoji} Cancel`
   );
 
   // React to the message with all game mode emojis
-  await gameModeMessage.react(customEmojis.RegEmoji);
-  await gameModeMessage.react(customEmojis.IMEmoji);
-  await gameModeMessage.react(customEmojis.HCEmoji);
-  await gameModeMessage.react(customEmojis.UIMEmoji);
-  await gameModeMessage.react(customEmojis.CancelEmoji);
+  await gameModeMessage.react(CUSTOM_EMOJIS.RegEmoji);
+  await gameModeMessage.react(CUSTOM_EMOJIS.IMEmoji);
+  await gameModeMessage.react(CUSTOM_EMOJIS.HCEmoji);
+  await gameModeMessage.react(CUSTOM_EMOJIS.UIMEmoji);
+  await gameModeMessage.react(CUSTOM_EMOJIS.CancelEmoji);
 
   // Create a reaction collector to listen for the reactions
   const filter = (reaction, user) => user.id === message.author.id;
@@ -263,10 +216,11 @@ async function addPlayer(message) {
 
   // Save to database
   try {
-    await pool.query(
-      `INSERT INTO users (discord_id, username, osrs_name, gameMode) 
-       VALUES ($1, $2, $3, $4)`,
-      [message.author.id, message.author.username, osrsName, gameMode]
+    await addPlayerToDB(
+      message.author.id,
+      message.author.username,
+      osrsName,
+      gameMode
     );
     message.reply(`Succesfully added user: **${osrsName}** - **${gameMode}**`);
   } catch (err) {
@@ -281,12 +235,10 @@ async function addPlayer(message) {
 
 async function userInfo(message) {
   try {
-    const res = await pool.query(
-      "SELECT osrs_name, gamemode FROM users WHERE discord_id = $1",
-      [message.author.id]
-    );
-    if (res.rows.length > 0) {
-      const accounts = res.rows
+    const userInfo = await getUserInfoByDiscordId(message.author.id);
+
+    if (userInfo.length > 0) {
+      const accounts = userInfo
         .map((row) => `Name: ${row.osrs_name}, Type: ${row.gamemode}`)
         .join("\n");
       message.reply(`Your OSRS accounts:\n${accounts}`);
@@ -301,17 +253,14 @@ async function userInfo(message) {
 
 async function removePlayer(message) {
   try {
-    const res = await pool.query(
-      "SELECT osrs_name FROM users WHERE discord_id = $1",
-      [message.author.id]
-    );
+    const accounts = await getAllUsersByDiscordId(message.author.id);
 
-    if (res.rows.length === 0) {
+    if (accounts.length === 0) {
       return message.reply("You dont have any registered OSRS accounts.");
     }
 
-    const accountList = res.rows
-      .map((row, index) => `${index + 1}. ${row.osrs_name}`)
+    const accountList = accounts
+      .map((account, index) => `${index + 1}. ${account.osrs_name}`)
       .join("\n");
 
     message.reply(
@@ -319,18 +268,15 @@ async function removePlayer(message) {
     );
     const accountChoice = await askQuestions(
       message,
-      `Select account: 1-${res.rows.length}`
+      `Select account: 1-${accounts.length}`
     );
-    const selectedAccount = res.rows[parseInt(accountChoice) - 1]?.osrs_name;
+    const selectedAccount = accounts[parseInt(accountChoice) - 1]?.osrs_name;
 
     if (!selectedAccount) {
       return message.reply("Invalid selection.");
     }
 
-    await pool.query(
-      "DELETE FROM users WHERE discord_id = $1 AND osrs_name = $2",
-      [message.author.id, selectedAccount]
-    );
+    await removePlayerFromDB(message.author.id, selectedAccount);
     message.reply(`Successfully removed account: **${selectedAccount}**`);
   } catch (err) {
     console.error(err);
@@ -348,7 +294,7 @@ async function levelCommand(message, args) {
   else if (
     skill &&
     !osrsName &&
-    skills.map((s) => s.toLocaleLowerCase()).includes(skill)
+    SKILLS.map((s) => s.toLocaleLowerCase()).includes(skill)
   ) {
     await userLevelSelection(message, skill);
   }
@@ -356,14 +302,14 @@ async function levelCommand(message, args) {
   else if (
     skill &&
     osrsName &&
-    skills.map((s) => s.toLocaleLowerCase()).includes(skill)
+    SKILLS.map((s) => s.toLocaleLowerCase()).includes(skill)
   ) {
     await fetchSkillLevel(message, osrsName, skill);
   }
   // If only name is given
   else if (
     osrsName &&
-    !skills.map((s) => s.toLocaleLowerCase()).includes(skill)
+    !SKILLS.map((s) => s.toLocaleLowerCase()).includes(skill)
   ) {
     await fetchAndDisplayStats(message, osrsName);
   } else {
@@ -377,12 +323,12 @@ async function levelCommand(message, args) {
 
 async function userLevelSelection(message, skill = null) {
   try {
-    const res = await pool.query("SELECT osrs_name, discord_id FROM users");
+    const res = await getAllUsers();
 
     // Show user available accounts
-    if (res.rows.length > 0) {
-      if (res.rows.length > 1) {
-        const accounts = res.rows
+    if (res.length > 0) {
+      if (res.length > 1) {
+        const accounts = res
           .map((row, index) => `${index + 1}. ${row.osrs_name}`)
           .join("\n");
         message.reply(`Select account:\n${accounts}`);
@@ -392,7 +338,7 @@ async function userLevelSelection(message, skill = null) {
         const selectedAccountIndex = parseInt(accountChoice) - 1;
 
         // Validate selection
-        const selectedAccount = res.rows[selectedAccountIndex]?.osrs_name;
+        const selectedAccount = res[selectedAccountIndex]?.osrs_name;
         if (!selectedAccount)
           return message.reply("Invalid account selection.");
 
