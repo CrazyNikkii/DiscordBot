@@ -17,6 +17,7 @@ async function getGameModeByOSRSName(osrsName) {
       [osrsName]
     );
 
+    console.log("Database response:", res.rows); // Log the response
     const gameMode = res.rows.length > 0 ? res.rows[0].gamemode : null;
 
     return gameMode;

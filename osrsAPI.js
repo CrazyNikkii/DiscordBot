@@ -24,25 +24,36 @@ async function getUrl(osrsName, gameMode) {
 
 async function fetchAndDisplayStats(osrsName, gameMode) {
   try {
+    if (!osrsName || !gameMode) {
+      throw new Error("OSRS name or game mode is missing.");
+    }
+
     const url = await getUrl(osrsName, gameMode);
+
+    if (!url) {
+      throw new Error(`Failed to retrieve URL for ${osrsName} (${gameMode}).`);
+    }
+
     const response = await axios.get(url);
 
-    if (response && response.data) {
-      const playerData = response.data.split("\n");
-      const stats = SKILLS.map((skill, index) => {
-        const skillData = playerData[index];
-        if (skillData && skillData !== "") {
-          const [rank, level, exp] = skillData.split(",");
-          return `${skill}: Level: ${level}, Exp: ${exp}`;
-        }
-
-        return `${skill}: No data available`;
-      }).join("\n");
-
-      return stats;
-    } else {
+    if (!response || !response.data) {
       throw new Error(`Unable to fetch stats for player: ${osrsName}`);
     }
+
+    const playerData = response.data.split("\n");
+
+    const stats = SKILLS.map((skill, index) => {
+      const skillData = playerData[index];
+
+      if (skillData && skillData !== "") {
+        const [rank, level, exp] = skillData.split(",");
+        return `${skill}: Level: ${level}, Exp: ${exp}`;
+      }
+
+      return `${skill}: No data available`;
+    }).join("\n");
+
+    return stats;
   } catch (err) {
     console.error("Error in fetchAndDisplayStats:", err);
     throw new Error(`There was an error fetching stats: ${err.message}`);
@@ -53,6 +64,7 @@ async function fetchSkillLevel(osrsName, gameMode, skill) {
   try {
     // Generate the API URL
     const url = await getUrl(osrsName, gameMode);
+    console.log(`Generated URL: ${url}`);
 
     // Fetch the API response
     const response = await axios.get(url);

@@ -266,13 +266,14 @@ async function userLevelSelection(message, skill = null) {
     const accounts = res
       .map((row, index) => `${index + 1}. ${row.osrs_name}`)
       .join("\n");
-    message.reply(`Select account:\n${accounts}`);
+    message.reply(`Accounts:\n${accounts}`);
 
     // Ask for account selection
     const accountChoice = await askQuestions(message, "Select account:");
     const selectedAccountIndex = parseInt(accountChoice) - 1;
 
     const selectedAccount = res[selectedAccountIndex]?.osrs_name;
+    console.log(`User selected account: ${selectedAccount}`);
     if (!selectedAccount) {
       return message.reply("Invalid account selection.");
     }
@@ -285,15 +286,33 @@ async function userLevelSelection(message, skill = null) {
       );
     }
 
-    // If skill is provided, fetch skill level; otherwise, fetch stats
-    return skill
-      ? await fetchSkillLevel(message, selectedAccount, skill)
-      : message.reply(
-          `Stats for ${selectedAccount} (${gameMode} mode):\n${await fetchAndDisplayStats(
-            selectedAccount,
-            gameMode
-          )}`
+    if (skill) {
+      try {
+        const skillLevel = await fetchSkillLevel(
+          selectedAccount,
+          gameMode,
+          skill
         );
+        return message.reply(skillLevel);
+      } catch (err) {
+        console.error("Error fetching skill level:", err);
+        return message.reply(
+          `There was an error fetching the skill level for **${selectedAccount}**: ${err.message}`
+        );
+      }
+    } else {
+      try {
+        const stats = await fetchAndDisplayStats(selectedAccount, gameMode);
+        return message.reply(
+          `Stats for ${selectedAccount} (${gameMode} mode):\n${stats}`
+        );
+      } catch (err) {
+        console.error("Error fetching stats:", err);
+        return message.reply(
+          `There was an error fetching stats for **${selectedAccount}**: ${err.message}`
+        );
+      }
+    }
   } catch (err) {
     console.error(err);
     message.reply("There was an error fetching your OSRS name.");
