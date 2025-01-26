@@ -9,19 +9,15 @@ const GAME_MODE_PATHS = {
 };
 
 async function getUrl(osrsName, gameMode) {
-  console.log("Generating URL for", osrsName, "with gameMode", gameMode); // Log inputs
-
-  // Ensure that osrsName is a valid player name (i.e., no leading "!" from command)
+  // Ensure that osrsName is a valid player name
   if (!osrsName || osrsName === "") {
     throw new Error("Player name is required.");
   }
 
   const gameModePath = GAME_MODE_PATHS[gameMode] || "";
-  console.log("GameMode Path:", gameModePath); // Log the path
 
   const url = new URL(`${BASE_URL}${gameModePath}/index_lite.ws`);
-  url.searchParams.append("player", osrsName); // Make sure osrsName is correctly passed here
-  console.log("Final URL:", url.toString()); // Log the final URL
+  url.searchParams.append("player", osrsName);
 
   return url.toString();
 }
@@ -29,7 +25,6 @@ async function getUrl(osrsName, gameMode) {
 async function fetchAndDisplayStats(osrsName, gameMode) {
   try {
     const url = await getUrl(osrsName, gameMode);
-    console.log("URL:", url);
     const response = await axios.get(url);
 
     if (response && response.data) {
@@ -44,8 +39,7 @@ async function fetchAndDisplayStats(osrsName, gameMode) {
         return `${skill}: No data available`;
       }).join("\n");
 
-      console.log(stats); // Log the stats for debugging
-      return stats; // Return the stats here so we can use it later
+      return stats;
     } else {
       throw new Error(`Unable to fetch stats for player: ${osrsName}`);
     }
@@ -57,28 +51,40 @@ async function fetchAndDisplayStats(osrsName, gameMode) {
 
 async function fetchSkillLevel(osrsName, gameMode, skill) {
   try {
-    const url = await getUrl(osrsName, gameMode); // Use the getUrl function to generate the URL
+    // Generate the API URL
+    const url = await getUrl(osrsName, gameMode);
+
+    // Fetch the API response
     const response = await axios.get(url);
-
-    if (response && response.data) {
-      const playerData = response.data.split("\n");
-      const skillIndex = SKILLS.indexOf(skill);
-
-      if (skillIndex === -1) {
-        throw new Error(`Skill **${skill}** not recognized.`);
-      }
-
-      const skillData = playerData[skillIndex];
-      if (skillData && skillData !== "") {
-        const [rank, level, exp] = skillData.split(",");
-        return `**${osrsName}: ${skill}: Level: ${level}**`;
-      } else {
-        throw new Error(`${skill} skill data not available for ${osrsName}`);
-      }
-    } else {
-      throw new Error(`Unable to fetch data for ${osrsName}`);
+    if (!response || !response.data) {
+      throw new Error(`No response received from API for ${osrsName}`);
     }
+
+    // Parse the API response
+    const playerData = response.data.split("\n");
+
+    // Get the skill index and corresponding data
+    const skillIndex = SKILLS.indexOf(skill.toLowerCase());
+    if (skillIndex === -1) {
+      throw new Error(`Skill '${skill}' is not recognized.`);
+    }
+
+    const skillData = playerData[skillIndex];
+
+    // Handle missing or incomplete skill data
+    if (
+      !skillData ||
+      skillData.split(",").length < 3 ||
+      skillData.includes("-1")
+    ) {
+      return `Skill data for **${skill}** is not available or incomplete for **${osrsName}**.`;
+    }
+
+    // Parse the skill data (rank, level, experience)
+    const [rank, level, exp] = skillData.split(",");
+    return `**${osrsName} ${skill}**:\n**Level:** ${level}\n**Exp:** ${exp}`;
   } catch (err) {
+    console.error("Error in fetchSkillLevel:", err.message);
     throw new Error(`There was an error fetching skill data: ${err.message}`);
   }
 }
