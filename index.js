@@ -157,14 +157,14 @@ async function userInfo(message) {
   try {
     const userInfo = await getUserInfoByDiscordId(message.author.id);
 
-    if (userInfo.length > 0) {
-      const accounts = userInfo
-        .map((row) => `Name: ${row.osrs_name}, Type: ${row.gamemode}`)
-        .join("\n");
-      message.reply(`Your OSRS accounts:\n${accounts}`);
-    } else {
-      message.reply("You have no registered OSRS accounts.");
+    if (userInfo.length === 0) {
+      return message.reply("You have no registered OSRS accounts.");
     }
+
+    const accounts = userInfo
+      .map((row) => `Name: ${row.osrs_name}, Type: ${row.gamemode}`)
+      .join("\n");
+    message.reply(`Your OSRS accounts:\n${accounts}`);
   } catch (err) {
     console.error(err);
     message.reply("There was an error fetching your data");
