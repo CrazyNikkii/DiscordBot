@@ -244,53 +244,56 @@ async function userLevelSelection(message, skill = null) {
   try {
     const res = await getAllUsers();
 
-    if (res.length > 0) {
-      if (res.length > 1) {
-        const accounts = res
-          .map((row, index) => `${index + 1}. ${row.osrs_name}`)
-          .join("\n");
-        message.reply(`Select account:\n${accounts}`);
-
-        // Ask for account selection
-        const accountChoice = await askQuestions(message, "Select account:");
-        const selectedAccountIndex = parseInt(accountChoice) - 1;
-
-        const selectedAccount = res[selectedAccountIndex]?.osrs_name;
-        if (!selectedAccount) {
-          return message.reply("Invalid account selection.");
-        }
-
-        // Fetch game mode for the selected account
-        const gameMode = await getGameModeByOSRSName(selectedAccount);
-        if (!gameMode) {
-          return message.reply(
-            "Unable to retrieve game mode for selected account."
-          );
-        }
-
-        // If skill is provided, fetch skill level; otherwise, fetch stats
-        if (skill) {
-          await fetchSkillLevel(message, selectedAccount, skill);
-        } else {
-          const stats = await fetchAndDisplayStats(selectedAccount, gameMode);
-          message.reply(
-            `Stats for ${selectedAccount} (${gameMode} mode):\n${stats}`
-          );
-        }
-      } else {
-        // If only one account, just fetch data for that account
-        const osrsName = res[0].osrs_name;
-        const gameMode = await getGameModeByOSRSName(osrsName);
-        if (skill) {
-          await fetchSkillLevel(message, osrsName, skill);
-        } else {
-          const stats = await fetchAndDisplayStats(osrsName, gameMode);
-          message.reply(`Stats for ${osrsName} (${gameMode} mode):\n${stats}`);
-        }
-      }
-    } else {
-      message.reply("You don't have any registered accounts yet.");
+    if (res.length === 0) {
+      return message.reply("You don't have any registered accounts yet.");
     }
+
+    // If only one account, just fetch data for that account
+    if (res.length === 1) {
+      const osrsName = res[0].osrs_name;
+      const gameMode = await getGameModeByOSRSName(osrsName);
+      return skill
+        ? await fetchSkillLevel(message, osrsName, skill)
+        : message.reply(
+            `Stats for ${osrsName} (${gameMode} mode):\n${await fetchAndDisplayStats(
+              osrsName,
+              gameMode
+            )}`
+          );
+    }
+
+    // If multiple accounts, prompt for selection
+    const accounts = res
+      .map((row, index) => `${index + 1}. ${row.osrs_name}`)
+      .join("\n");
+    message.reply(`Select account:\n${accounts}`);
+
+    // Ask for account selection
+    const accountChoice = await askQuestions(message, "Select account:");
+    const selectedAccountIndex = parseInt(accountChoice) - 1;
+
+    const selectedAccount = res[selectedAccountIndex]?.osrs_name;
+    if (!selectedAccount) {
+      return message.reply("Invalid account selection.");
+    }
+
+    // Fetch game mode for the selected account
+    const gameMode = await getGameModeByOSRSName(selectedAccount);
+    if (!gameMode) {
+      return message.reply(
+        "Unable to retrieve game mode for selected account."
+      );
+    }
+
+    // If skill is provided, fetch skill level; otherwise, fetch stats
+    return skill
+      ? await fetchSkillLevel(message, selectedAccount, skill)
+      : message.reply(
+          `Stats for ${selectedAccount} (${gameMode} mode):\n${await fetchAndDisplayStats(
+            selectedAccount,
+            gameMode
+          )}`
+        );
   } catch (err) {
     console.error(err);
     message.reply("There was an error fetching your OSRS name.");

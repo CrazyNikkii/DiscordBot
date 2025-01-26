@@ -22,13 +22,8 @@ const SKILLS = [
   "slayer",
   "farming",
   "runecrafting",
-  "construction",
   "hunter",
-  "summoning",
-  "dungeoneering",
-  "divination",
-  "invention",
-  "alive",
+  "construction",
 ];
 
 // Custom emojis
