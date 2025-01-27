@@ -104,7 +104,7 @@ async function fetchSkillLevel(osrsName, gameMode, skill) {
 async function fetchActivityData(osrsName, gameMode, activity) {
   try {
     const url = await getUrl(osrsName, gameMode);
-
+    console.log(`Fetching data from: ${url}`);
     const response = await axios.get(url);
 
     if (!response || !response.data) {

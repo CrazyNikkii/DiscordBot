@@ -245,7 +245,6 @@ async function levelCommand(message, args) {
 }
 
 async function kcCommand(message, args) {
-  // If the message has no arguments, show usage instructions
   if (!args.length) {
     message.reply(`Invalid command. Please use one of the following formats:
       !kc <activity>
@@ -253,22 +252,26 @@ async function kcCommand(message, args) {
     return;
   }
 
-  // Extract the activity as everything except the last argument
-  const activity = args.slice(0, -1).join(" ").toLowerCase(); // Combine all parts except the last into one string and convert to lowercase
-  const osrsName = args[args.length - 1]; // The last argument is the OSRS name
+  let activity = args.join(" ").toLowerCase();
+  let osrsName = null;
 
-  // Validate if the activity is in the ACTIVITIES list
+  if (args.length > 1) {
+    osrsName = args[args.length - 1];
+    activity = args.slice(0, -1).join(" ").toLowerCase();
+  }
+
+  console.log(`Received activity: ${activity}`);
+
   if (!SKILLS_AND_ACTIVITIES.includes(activity)) {
+    console.log(`Activity not found in list: ${activity}`);
     message.reply(`Invalid activity: **${activity}**.`);
     return;
   }
 
-  // If no player is provided, use the first player found in the database
   if (!osrsName) {
     await displayKCForAllAccounts(message, activity);
   } else {
     try {
-      // Fetch and display the kill count for specific account and activity
       const gameMode = await getGameModeByOSRSName(osrsName);
       if (!gameMode) {
         return message.reply(`No account found for name ${osrsName}.`);
@@ -293,22 +296,38 @@ async function displayKCForAllAccounts(message, activity) {
     }
 
     let allKCData = "";
+    let hasData = false;
+
     for (const account of accounts) {
       const gameMode = await getGameModeByOSRSName(account.osrs_name);
-      if (gameMode) {
+      if (!gameMode) {
+        console.warn(`No game mode found for ${account.osrs_name}`);
+        continue;
+      }
+
+      try {
         const kcData = await fetchActivityData(
           account.osrs_name,
           gameMode,
           activity
         );
-        allKCData += kcData + "\n";
+        if (kcData) {
+          allKCData += `${account.osrs_name}: ${kcData}\n`;
+          hasData = true;
+        } else {
+          console.warn(
+            `No KC data found for ${account.osrs_name} (${activity})`
+          );
+        }
+      } catch (err) {
+        console.error(`Error fetching KC data for ${account.osrs_name}:`, err);
       }
     }
 
-    if (allKCData === "") {
-      message.reply("No kill count data available for your accounts.");
+    if (!hasData) {
+      message.reply(`No kill count data available for ${activity}.`);
     } else {
-      message.reply(allKCData);
+      message.reply(allKCData || "No kill count data found for your accounts.");
     }
   } catch (err) {
     console.error("Error fetching kill count for all accounts:", err);
