@@ -11,9 +11,13 @@ const {
   getAllUsersByDiscordId,
 } = require("./db");
 
-const { SKILLS, CUSTOM_EMOJIS } = require("./constants");
+const { SKILLS, CUSTOM_EMOJIS, ACTIVITIES } = require("./constants");
 
-const { fetchAndDisplayStats, fetchSkillLevel } = require("./osrsAPI");
+const {
+  fetchAndDisplayStats,
+  fetchSkillLevel,
+  fetchActivityData,
+} = require("./osrsAPI");
 
 console.log(fetchAndDisplayStats);
 
@@ -240,6 +244,75 @@ async function levelCommand(message, args) {
   }
 }
 
+async function kcCommand(message, args) {
+  const activity = args[0]?.toLowerCase();
+  const osrsName = args[1];
+
+  if (!args.length) {
+    message.reply(`Invalid command. Please use one of the following formats:
+      !kc <activity>
+      !kc <activity> <osrsname>`);
+  } else if (args.length === 1) {
+    if (ACTIVITIES.includes(activity)) {
+      // Fetch kill count for all accounts
+      await displayKCForAllAccounts(message, activity);
+    } else {
+      message.reply(`Invalid activity.`);
+    }
+  } else if (activity && osrsName && ACTIVITIES.includes(activity)) {
+    try {
+      // Fetch and display the kill count for specific account and activity
+      const gameMode = await getGameModeByOSRSName(osrsName);
+      if (!gameMode) {
+        return message.reply(`No account found for name ${osrsName}.`);
+      }
+
+      const kcData = await fetchActivityData(osrsName, gameMode, activity);
+      message.reply(kcData);
+    } catch (err) {
+      console.error("Error fetching kill count:", err);
+      message.reply(
+        `There was an error fetching kill count data: ${err.message}`
+      );
+    }
+  } else {
+    message.reply(`Invalid command. Please use one of the following formats:
+      !kc <activity>
+      !kc <activity> <osrsname>`);
+  }
+}
+
+async function displayKCForAllAccounts(message, activity) {
+  try {
+    const accounts = await getAllUsers();
+    if (accounts.length === 0) {
+      return message.reply("You don't have any registered accounts yet.");
+    }
+
+    let allKCData = "";
+    for (const account of accounts) {
+      const gameMode = await getGameModeByOSRSName(account.osrs_name);
+      if (gameMode) {
+        const kcData = await fetchActivityData(
+          account.osrs_name,
+          gameMode,
+          activity
+        );
+        allKCData += kcData + "\n";
+      }
+    }
+
+    if (allKCData === "") {
+      message.reply("No kill count data available for your accounts.");
+    } else {
+      message.reply(allKCData);
+    }
+  } catch (err) {
+    console.error("Error fetching kill count for all accounts:", err);
+    message.reply("There was an error fetching kill count for your accounts.");
+  }
+}
+
 async function userLevelSelection(message, skill = null) {
   try {
     const res = await getAllUsers();
@@ -362,6 +435,7 @@ client.on("messageCreate", async (message) => {
   if (command === "userinfo") await userInfo(message);
   if (command === "removeplayer") await removePlayer(message);
   if (command === "lvl") await levelCommand(message, args);
+  if (command === "kc") await kcCommand(message, args);
 });
 
 // Logging in

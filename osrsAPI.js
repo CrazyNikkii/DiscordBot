@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { SKILLS } = require("./constants");
+const { SKILLS, ACTIVITIES } = require("./constants");
 
 const BASE_URL = "https://secure.runescape.com/m=hiscore_oldschool";
 const GAME_MODE_PATHS = {
@@ -101,4 +101,42 @@ async function fetchSkillLevel(osrsName, gameMode, skill) {
   }
 }
 
-module.exports = { getUrl, fetchAndDisplayStats, fetchSkillLevel };
+async function fetchActivityData(osrsName, gameMode, activity) {
+  try {
+    const url = await getUrl(osrsName, gameMode);
+
+    const response = await axios.get(url);
+
+    if (!response || !response.data) {
+      throw new Error(`No response received from API for ${osrsName}`);
+    }
+
+    const playerData = response.data.split("\n");
+    const activityIndex = ACTIVITIES.indexOf(activity);
+
+    if (activityIndex === -1) {
+      throw new Error(`Activity ${activity} is not recognized.`);
+    }
+
+    const activityData = playerData[activityIndex];
+
+    if (!activityData || activityData.includes("-1")) {
+      return `${activity}: No data available.`;
+    }
+
+    const [rank, kills] = activityData.split(",");
+    return `${osrsName} ${activity}:\n**Rank:** ${rank}\n**Kills:** ${kills}`;
+  } catch (err) {
+    console.log("Error in fetchKCForActivity.", err.message);
+    throw new Error(
+      `There was an error fetching kill count data: ${err.message}`
+    );
+  }
+}
+
+module.exports = {
+  getUrl,
+  fetchAndDisplayStats,
+  fetchSkillLevel,
+  fetchActivityData,
+};
