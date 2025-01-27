@@ -1,5 +1,6 @@
 // Skill list
 const SKILLS_AND_ACTIVITIES = [
+  // SKILLS
   "Overall",
   "Attack",
   "Defence",
@@ -24,6 +25,7 @@ const SKILLS_AND_ACTIVITIES = [
   "Runecrafting",
   "Hunter",
   "Construction",
+  // ACTIVITIES
   "League Points",
   "Deadman Points",
   "Bounty Hunter - Hunter",
