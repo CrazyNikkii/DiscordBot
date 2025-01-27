@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { SKILLS, ACTIVITIES } = require("./constants");
+const { SKILLS, SKILLS_AND_ACTIVITIES } = require("./constants");
 
 const BASE_URL = "https://secure.runescape.com/m=hiscore_oldschool";
 const GAME_MODE_PATHS = {
@@ -112,7 +112,7 @@ async function fetchActivityData(osrsName, gameMode, activity) {
     }
 
     const playerData = response.data.split("\n");
-    const activityIndex = ACTIVITIES.indexOf(activity);
+    const activityIndex = SKILLS_AND_ACTIVITIES.indexOf(activity);
 
     if (activityIndex === -1) {
       throw new Error(`Activity ${activity} is not recognized.`);

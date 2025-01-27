@@ -1,5 +1,5 @@
 // Skill list
-const SKILLS = [
+const SKILLS_AND_ACTIVITIES = [
   "overall",
   "attack",
   "defence",
@@ -24,9 +24,6 @@ const SKILLS = [
   "runecrafting",
   "hunter",
   "construction",
-];
-
-const ACTIVITIES = [
   "League Points",
   "Deadman Points",
   "Bounty Hunter - Hunter",
@@ -120,4 +117,4 @@ const CUSTOM_EMOJIS = {
   CancelEmoji: "❌",
 };
 
-module.exports = { SKILLS, CUSTOM_EMOJIS, ACTIVITIES };
+module.exports = { SKILLS_AND_ACTIVITIES, CUSTOM_EMOJIS };

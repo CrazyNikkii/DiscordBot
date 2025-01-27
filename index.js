@@ -11,7 +11,7 @@ const {
   getAllUsersByDiscordId,
 } = require("./db");
 
-const { SKILLS, CUSTOM_EMOJIS, ACTIVITIES } = require("./constants");
+const { SKILLS, CUSTOM_EMOJIS, SKILLS_AND_ACTIVITIES } = require("./constants");
 
 const {
   fetchAndDisplayStats,
@@ -245,21 +245,28 @@ async function levelCommand(message, args) {
 }
 
 async function kcCommand(message, args) {
-  const activity = args[0]?.toLowerCase();
-  const osrsName = args[1];
-
+  // If the message has no arguments, show usage instructions
   if (!args.length) {
     message.reply(`Invalid command. Please use one of the following formats:
       !kc <activity>
       !kc <activity> <osrsname>`);
-  } else if (args.length === 1) {
-    if (ACTIVITIES.includes(activity)) {
-      // Fetch kill count for all accounts
-      await displayKCForAllAccounts(message, activity);
-    } else {
-      message.reply(`Invalid activity.`);
-    }
-  } else if (activity && osrsName && ACTIVITIES.includes(activity)) {
+    return;
+  }
+
+  // Extract the activity as everything except the last argument
+  const activity = args.slice(0, -1).join(" ").toLowerCase(); // Combine all parts except the last into one string and convert to lowercase
+  const osrsName = args[args.length - 1]; // The last argument is the OSRS name
+
+  // Validate if the activity is in the ACTIVITIES list
+  if (!SKILLS_AND_ACTIVITIES.includes(activity)) {
+    message.reply(`Invalid activity: **${activity}**.`);
+    return;
+  }
+
+  // If no player is provided, use the first player found in the database
+  if (!osrsName) {
+    await displayKCForAllAccounts(message, activity);
+  } else {
     try {
       // Fetch and display the kill count for specific account and activity
       const gameMode = await getGameModeByOSRSName(osrsName);
@@ -275,10 +282,6 @@ async function kcCommand(message, args) {
         `There was an error fetching kill count data: ${err.message}`
       );
     }
-  } else {
-    message.reply(`Invalid command. Please use one of the following formats:
-      !kc <activity>
-      !kc <activity> <osrsname>`);
   }
 }
 
