@@ -25,6 +25,9 @@ At this stage, OSLeaders is not publicly available. It is under active developme
 - **Skill Data**  
   Query specific skill levels and experience points using OSRS's official API.
 
+- **Activity Data**  
+  Query specific activity stats using OSRS's official API.
+
 ### Planned Features
 
 - **Leaderboards**  
@@ -52,10 +55,14 @@ At this stage, OSLeaders is not publicly available. It is under active developme
 
 - `!lvl`  
   Fetch stats for a registered OSRS account. Examples:
+
   - `!lvl` - View all skill stats for your registered accounts.
   - `!lvl <skill>` - View a specific skill's level for your registered account.
   - `!lvl <skill> <osrsname>` - View a specific skill's level for another player's OSRS account.
   - `!lvl <osrsname>` - Fetch all stats for another player's OSRS account.
+
+- `!kc <activity> <osrsname>`  
+  View activity stats for given OSRS account.
 
 ---
 
