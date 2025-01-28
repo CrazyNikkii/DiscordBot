@@ -121,7 +121,7 @@ async function fetchActivityData(osrsName, gameMode, activity) {
     const activityData = playerData[activityIndex];
 
     if (!activityData || activityData.includes("-1")) {
-      return `${activity}: No data available.`;
+      return null;
     }
 
     const [rank, kills] = activityData.split(",");
