@@ -110,6 +110,18 @@ const SKILLS_AND_ACTIVITIES = [
   "Zulrah",
 ].map((a) => a.toLowerCase());
 
+const ALIAS_MAP = {
+  atk: "attack",
+  def: "defence",
+  str: "strenght",
+  hp: "hitpoints",
+  range: "ranged",
+  mage: "magic",
+  rc: "runecrafting",
+  tob: "theatre of blood",
+  toa: "tombs of amascut",
+};
+
 // Custom emojis
 const CUSTOM_EMOJIS = {
   RegEmoji: "<:pmodcrown:1331210130481483847>",
@@ -119,4 +131,4 @@ const CUSTOM_EMOJIS = {
   CancelEmoji: "❌",
 };
 
-module.exports = { SKILLS_AND_ACTIVITIES, CUSTOM_EMOJIS };
+module.exports = { SKILLS_AND_ACTIVITIES, ALIAS_MAP, CUSTOM_EMOJIS };

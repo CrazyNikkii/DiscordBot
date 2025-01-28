@@ -11,7 +11,11 @@ const {
   getAllUsersByDiscordId,
 } = require("./db");
 
-const { SKILLS, CUSTOM_EMOJIS, SKILLS_AND_ACTIVITIES } = require("./constants");
+const {
+  CUSTOM_EMOJIS,
+  SKILLS_AND_ACTIVITIES,
+  ALIAS_MAP,
+} = require("./constants");
 
 const {
   fetchAndDisplayStats,
@@ -123,6 +127,17 @@ async function askGameMode(message) {
   });
 }
 
+function normalizeSkillOrActivity(input) {
+  const normalizedInput = input.toLowerCase();
+  if (ALIAS_MAP[normalizedInput]) {
+    return ALIAS_MAP[normalizedInput];
+  }
+  if (SKILLS_AND_ACTIVITIES.includes(normalizedInput)) {
+    return normalizedInput;
+  }
+  return null;
+}
+
 async function addPlayer(message) {
   const args = message.content.split(/\s+/);
   const osrsName =
@@ -209,30 +224,38 @@ async function removePlayer(message) {
 }
 
 async function levelCommand(message, args) {
-  const skill = args[0]?.toLowerCase(); // Check if the first argument is a skill
-  const osrsName = args[1] || args[0]; // If no second argument, use the first as the name
-
-  // If no arguments provided (just !lvl), prompt user for selection
-  if (!args.length) {
+  // Check if there are any arguments
+  if (!args || args.length === 0) {
+    // No arguments provided: prompt user for selection
     await userLevelSelection(message);
+    return;
   }
-  // If only one argument is provided, check if it’s a skill or username
-  else if (args.length === 1) {
-    if (SKILLS.map((s) => s.toLowerCase()).includes(skill)) {
-      // Argument is a skill, ask user to select an account
+
+  const input = args[0]?.toLowerCase(); // First argument (could be a skill or username)
+  const osrsName = args[1] || args[0]; // Second argument (username) or fallback to first argument
+  const skill = normalizeSkillOrActivity(input); // Normalize skill/activity input
+
+  // If only one argument is provided
+  if (args.length === 1) {
+    if (SKILLS_AND_ACTIVITIES.map((s) => s.toLowerCase()).includes(skill)) {
+      // Argument is a skill: ask user to select an account
       await userLevelSelection(message, skill);
     } else {
-      // Argument is a username, fetch stats for that username
+      // Argument is likely a username: fetch stats for that username
       await fetchAndDisplayStatsReply(message, osrsName);
     }
   }
-  // If both skill and OSRS name are provided, fetch skill level
-  else if (
-    skill &&
-    osrsName &&
-    SKILLS.map((s) => s.toLowerCase()).includes(skill)
-  ) {
-    await fetchSkillLevelReply(message, osrsName, skill);
+  // If both skill and username are provided
+  else if (args.length === 2) {
+    if (SKILLS_AND_ACTIVITIES.map((s) => s.toLowerCase()).includes(skill)) {
+      // Valid skill and username provided: fetch skill level
+      await fetchSkillLevelReply(message, osrsName, skill);
+    } else {
+      // Invalid skill input
+      message.reply(
+        `"${input}" is not a valid skill. Please check your input.`
+      );
+    }
   }
   // Invalid input case
   else {
@@ -245,93 +268,39 @@ async function levelCommand(message, args) {
 }
 
 async function kcCommand(message, args) {
-  if (!args.length) {
-    message.reply(`Invalid command. Please use one of the following formats:
-      !kc <activity>
+  // Ensure there are exactly two arguments: activity (boss) and username
+  if (args.length !== 2) {
+    message.reply(`Invalid command. Please use the following format:
       !kc <activity> <osrsname>`);
     return;
   }
 
-  let activity = args.join(" ").toLowerCase();
-  let osrsName = null;
+  let activity = args[0].toLowerCase();
+  let osrsName = args[1];
 
-  if (args.length > 1) {
-    osrsName = args[args.length - 1];
-    activity = args.slice(0, -1).join(" ").toLowerCase();
+  const normalizedActivity = normalizeSkillOrActivity(activity);
+  if (!normalizedActivity) {
+    return message.reply(`Invalid activity: ${activity}`);
   }
-
   console.log(`Received activity: ${activity}`);
 
-  if (!SKILLS_AND_ACTIVITIES.includes(activity)) {
-    console.log(`Activity not found in list: ${activity}`);
-    message.reply(`Invalid activity: **${activity}**.`);
-    return;
-  }
-
-  if (!osrsName) {
-    await displayKCForAllAccounts(message, activity);
-  } else {
-    try {
-      const gameMode = await getGameModeByOSRSName(osrsName);
-      if (!gameMode) {
-        return message.reply(`No account found for name ${osrsName}.`);
-      }
-
-      const kcData = await fetchActivityData(osrsName, gameMode, activity);
-      message.reply(kcData);
-    } catch (err) {
-      console.error("Error fetching kill count:", err);
-      message.reply(
-        `There was an error fetching kill count data: ${err.message}`
-      );
-    }
-  }
-}
-
-async function displayKCForAllAccounts(message, activity) {
   try {
-    const accounts = await getAllUsers();
-    if (accounts.length === 0) {
-      return message.reply("You don't have any registered accounts yet.");
+    const gameMode = await getGameModeByOSRSName(osrsName);
+    if (!gameMode) {
+      return message.reply(`No account found for name ${osrsName}.`);
     }
 
-    let allKCData = "";
-    let hasData = false;
-
-    for (const account of accounts) {
-      const gameMode = await getGameModeByOSRSName(account.osrs_name);
-      if (!gameMode) {
-        console.warn(`No game mode found for ${account.osrs_name}`);
-        continue;
-      }
-
-      try {
-        const kcData = await fetchActivityData(
-          account.osrs_name,
-          gameMode,
-          activity
-        );
-        if (kcData) {
-          allKCData += `${account.osrs_name}: ${kcData}\n`;
-          hasData = true;
-        } else {
-          console.warn(
-            `No KC data found for ${account.osrs_name} (${activity})`
-          );
-        }
-      } catch (err) {
-        console.error(`Error fetching KC data for ${account.osrs_name}:`, err);
-      }
-    }
-
-    if (!hasData) {
-      message.reply(`No kill count data available for ${activity}.`);
-    } else {
-      message.reply(allKCData || "No kill count data found for your accounts.");
-    }
+    const kcData = await fetchActivityData(
+      osrsName,
+      gameMode,
+      normalizedActivity
+    );
+    message.reply(kcData);
   } catch (err) {
-    console.error("Error fetching kill count for all accounts:", err);
-    message.reply("There was an error fetching kill count for your accounts.");
+    console.error("Error fetching kill count:", err);
+    message.reply(
+      `There was an error fetching kill count data: ${err.message}`
+    );
   }
 }
 

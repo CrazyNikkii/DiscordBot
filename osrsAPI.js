@@ -1,5 +1,5 @@
 const axios = require("axios");
-const { SKILLS, SKILLS_AND_ACTIVITIES } = require("./constants");
+const { SKILLS_AND_ACTIVITIES, ALIAS_MAP } = require("./constants");
 
 const BASE_URL = "https://secure.runescape.com/m=hiscore_oldschool";
 const GAME_MODE_PATHS = {
@@ -42,8 +42,10 @@ async function fetchAndDisplayStats(osrsName, gameMode) {
 
     const playerData = response.data.split("\n");
 
-    const stats = SKILLS.map((skill, index) => {
-      const skillData = playerData[index];
+    const skillsData = playerData.slice(0, 24);
+
+    const stats = SKILLS_AND_ACTIVITIES.slice(0, 24).map((skill, index) => {
+      const skillData = skillsData[index];
 
       if (skillData && skillData !== "") {
         const [rank, level, exp] = skillData.split(",");
@@ -51,9 +53,9 @@ async function fetchAndDisplayStats(osrsName, gameMode) {
       }
 
       return `${skill}: No data available`;
-    }).join("\n");
+    });
 
-    return stats;
+    return stats.join("\n");
   } catch (err) {
     console.error("Error in fetchAndDisplayStats:", err);
     throw new Error(`There was an error fetching stats: ${err.message}`);
@@ -76,7 +78,7 @@ async function fetchSkillLevel(osrsName, gameMode, skill) {
     const playerData = response.data.split("\n");
 
     // Get the skill index and corresponding data
-    const skillIndex = SKILLS.indexOf(skill.toLowerCase());
+    const skillIndex = SKILLS_AND_ACTIVITIES.indexOf(skill.toLowerCase());
     if (skillIndex === -1) {
       throw new Error(`Skill '${skill}' is not recognized.`);
     }
